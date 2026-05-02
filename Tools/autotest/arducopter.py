@@ -22,6 +22,7 @@ from pysim import util
 from pysim import vehicleinfo
 
 import vehicle_test_suite
+from rtls_link_beacon_sim import RTLSLinkBeaconSerialSim, cube_anchors
 
 from vehicle_test_suite import NotAchievedException, AutoTestTimeoutException, PreconditionFailedException
 from vehicle_test_suite import Test
@@ -8044,6 +8045,160 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
                 "EK3_SRC1_POSZ": 4,
             })
 
+    class RTLSLinkBeaconSimHook(vehicle_test_suite.TestSuite.MessageHook):
+        def __init__(self, suite, sim):
+            super().__init__(suite)
+            self.sim = sim
+
+        def process(self, mav, msg):
+            if msg.get_type() != 'SIM_STATE':
+                return
+            lat_int = getattr(msg, "lat_int", 0)
+            lon_int = getattr(msg, "lon_int", 0)
+            lat = (lat_int * 1.0e-7) if lat_int != 0 else msg.lat * 1.0e-7
+            lon = (lon_int * 1.0e-7) if lon_int != 0 else msg.lon * 1.0e-7
+            north = (lat - SITL_START_LOCATION.lat) * 111319.5
+            east = (lon - SITL_START_LOCATION.lng) * 111319.5 * math.cos(math.radians(SITL_START_LOCATION.lat))
+            self.sim.service((north, east, SITL_START_LOCATION.alt - msg.alt), now=self.suite.get_sim_time_cached())
+
+        def hook_removed(self):
+            self.sim.close()
+
+    def _BeaconRTLSLinkTDoAPositionScenario(
+            self,
+            label,
+            sim_kwargs=None,
+            beacon_measurement_noise=0.15,
+            max_allowed_divergence=10,
+            track_time=12,
+            position_max_delta=5,
+            posz_source=4,
+            sim_message_rate_hz=100,
+            sim_sample_rate_hz=100,
+            beacon_delay_ms=50,
+            force_disarm_on_land_timeout=False):
+        self.progress("RTLS Link beacon scenario: %s" % label)
+        port = self.spare_network_port()
+        self.customise_SITL_commandline(["--serial5=tcp:%u" % port])
+        self.reboot_sitl()
+
+        self.wait_ready_to_arm(require_absolute=True)
+        old_pos = self.get_global_position_int()
+
+        self.set_parameters({
+            "SERIAL5_PROTOCOL": 13,
+            "SERIAL5_BAUD": 115,
+            "BCN_TYPE": 4,
+            "BCN_LATITUDE": SITL_START_LOCATION.lat,
+            "BCN_LONGITUDE": SITL_START_LOCATION.lng,
+            "BCN_ALT": SITL_START_LOCATION.alt,
+            "BCN_ORIENT_YAW": 0,
+            "AVOID_ENABLE": 4,
+            "GPS1_TYPE": 0,
+            "EK3_ENABLE": 1,
+            "EK3_SRC1_POSXY": 4,
+            "EK3_SRC1_POSZ": posz_source,
+            "EK3_SRC1_VELXY": 0,
+            "EK3_SRC1_VELZ": 0,
+            "EK2_ENABLE": 0,
+            "AHRS_EKF_TYPE": 3,
+            "EK3_BCN_M_NSE": beacon_measurement_noise,
+            "EK3_BCN_DELAY": beacon_delay_ms,
+        })
+        self.reboot_sitl()
+
+        sim = RTLSLinkBeaconSerialSim(
+            ("127.0.0.1", port),
+            anchors=cube_anchors(),
+            sample_rate_hz=sim_sample_rate_hz,
+            **(sim_kwargs or {}))
+        sim.connect()
+
+        self.context_push()
+        self.install_message_hook_context(self.RTLSLinkBeaconSimHook(self, sim))
+        try:
+            self.context_set_message_rate_hz(mavutil.mavlink.MAVLINK_MSG_ID_SIM_STATE, sim_message_rate_hz)
+            old_arming_check = int(self.get_parameter("ARMING_CHECK"))
+            if old_arming_check == 1:
+                old_arming_check = 1 ^ 25 - 1
+            self.set_parameter("ARMING_CHECK", int(old_arming_check) & ~(1 << 3))
+
+            self.wait_ready_to_arm(require_absolute=False)
+
+            tstart = self.get_sim_time()
+            while True:
+                if self.get_sim_time_cached() - tstart > 60:
+                    raise NotAchievedException("Did not get RTLS Link beacon position")
+                new_pos = self.get_global_position_int()
+                pos_delta = self.get_distance_int(old_pos, new_pos)
+                self.progress("RTLS Link beacon delta=%u want <= %u config=%u pos=%u tdoa=%u drop=%u" % (
+                    pos_delta,
+                    position_max_delta,
+                    1 if sim.config_accepted else 0,
+                    sim.sent_positions,
+                    sim.sent_tdoa,
+                    sim.dropped_tdoa,
+                ))
+                if pos_delta <= position_max_delta:
+                    break
+
+            self.takeoff(10, mode="STABILIZE")
+            self.change_mode("CIRCLE")
+            validator = vehicle_test_suite.TestSuite.ValidateGlobalPositionIntAgainstSimState(self, max_allowed_divergence=max_allowed_divergence)
+            self.install_message_hook_context(validator)
+            self.delay_sim_time(track_time)
+            self.change_mode("LOITER")
+            self.wait_groundspeed(0, 0.3, timeout=120)
+            try:
+                self.land_and_disarm()
+            except AutoTestTimeoutException:
+                if not force_disarm_on_land_timeout:
+                    raise
+                self.progress("LAND timeout in noisy beacon scenario; forcing disarm")
+                self.disarm_vehicle(force=True)
+        finally:
+            self.context_pop()
+            self.disarm_vehicle(force=True)
+
+        self.assert_current_onboard_log_contains_message("BCN")
+        self.assert_current_onboard_log_contains_message("BCNT")
+        self.assert_current_onboard_log_contains_message("XKTD")
+
+    def BeaconRTLSLinkTDoAPosition(self):
+        '''Fly Beacon Position using the RTLS Link serial TDoA backend'''
+        self._BeaconRTLSLinkTDoAPositionScenario("baseline")
+
+    def BeaconRTLSLinkTDoANoisePosition(self):
+        '''Fly Beacon Position using the RTLS Link serial TDoA backend with moderate TDoA noise'''
+        self._BeaconRTLSLinkTDoAPositionScenario(
+            "noise-0.20m",
+            sim_kwargs={
+                "tdoa_noise_m": 0.20,
+                "tdoa_sigma_m": 0.25,
+                "seed": 2,
+            },
+            beacon_measurement_noise=0.25,
+            force_disarm_on_land_timeout=True,
+            track_time=12)
+
+    def BeaconRTLSLinkTDoADropoutOutlierPosition(self):
+        '''Fly Beacon Position using the RTLS Link serial TDoA backend with dropout and outliers'''
+        self._BeaconRTLSLinkTDoAPositionScenario(
+            "noise-0.25m-dropout-20pct-outlier-5pct",
+            sim_kwargs={
+                "tdoa_noise_m": 0.25,
+                "tdoa_sigma_m": 0.35,
+                "tdoa_dropout_pct": 20.0,
+                "tdoa_outlier_pct": 5.0,
+                "tdoa_outlier_m": 2.0,
+                "seed": 4,
+            },
+            beacon_measurement_noise=0.35,
+            max_allowed_divergence=15,
+            force_disarm_on_land_timeout=True,
+            position_max_delta=8,
+            track_time=12)
+
     def AC_Avoidance_Beacon(self):
         '''Test beacon avoidance slide behaviour'''
         self.context_push()
@@ -11096,6 +11251,9 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
              self.BeaconPosition,
              self.BeaconTDoAPosition,
              self.BeaconTDoACubePosition,
+             self.BeaconRTLSLinkTDoAPosition,
+             self.BeaconRTLSLinkTDoANoisePosition,
+             self.BeaconRTLSLinkTDoADropoutOutlierPosition,
              self.ReplayBeaconTDoA,
              self.RTLSpeed,
              self.Mount,
