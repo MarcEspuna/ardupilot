@@ -84,7 +84,7 @@ void AP_Beacon_Backend::set_beacon_position(uint8_t beacon_instance, const Vecto
 }
 
 // set a TDoA range-difference measurement between two beacons
-void AP_Beacon_Backend::set_tdoa_measurement(uint8_t anchor_id_a, uint8_t anchor_id_b, float distance_diff, float distance_diff_err)
+void AP_Beacon_Backend::set_tdoa_measurement(uint8_t anchor_id_a, uint8_t anchor_id_b, float distance_diff, float distance_diff_err, uint16_t age_ms)
 {
     if (anchor_id_a >= AP_BEACON_MAX_BEACONS ||
         anchor_id_b >= AP_BEACON_MAX_BEACONS ||
@@ -117,13 +117,18 @@ void AP_Beacon_Backend::set_tdoa_measurement(uint8_t anchor_id_a, uint8_t anchor
         _frontend.num_tdoa = instance + 1;
     }
 
+    // back-stamp the measurement to when the UWB solver actually produced it
+    const uint32_t now_ms = AP_HAL::millis();
+    const uint32_t meas_time_ms = (age_ms > now_ms) ? 0 : (now_ms - age_ms);
+
     auto &state = _frontend.tdoa_state[instance];
     state.anchor_id_a = anchor_id_a;
     state.anchor_id_b = anchor_id_b;
     state.distance_diff = distance_diff;
     state.distance_diff_err = MAX(distance_diff_err, 0.0f);
     state.healthy = true;
-    state.update_ms = AP_HAL::millis();
+    state.update_ms = meas_time_ms;
+    state.age_ms = age_ms;
 }
 
 // rotate vector (meters) to correct for beacon system yaw orientation

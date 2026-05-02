@@ -260,7 +260,8 @@ void AP_Beacon_SITL::update(void)
             }
 
             // Keep zero-noise simulator runs from implying a zero-variance EKF observation.
-            set_tdoa_measurement(anchor_id_a, anchor_id_b, distance_diff, MAX(noise_stddev, 0.15f));
+            // In-process backend: no transport latency, so age_ms = 0.
+            set_tdoa_measurement(anchor_id_a, anchor_id_b, distance_diff, MAX(noise_stddev, 0.15f), 0);
         }
     } else {
         set_beacon_position(beacon_id, beac_pos3d);

@@ -175,9 +175,29 @@ void AP_Beacon_RTLSLink::handle_position()
     last_update_ms = AP_HAL::millis();
 }
 
+// Firmware contract for TDOA frames
+// ---------------------------------
+// The `age_ms` field is the single source of truth for measurement timing.
+// EKF3 back-stamps `update_ms = AP_HAL::millis() - age_ms` and applies no further
+// fudge factor (EK3_BCN_DELAY is NOT used on the TDoA path). For the EKF to fuse
+// the measurement at the correct instant in its delayed-time horizon, `age_ms`
+// MUST include every source of latency the firmware can measure or estimate:
+//
+//   age_ms = (now_at_TX - tdoa_solve_completion_time)
+//          + estimated_serial_drain_time     // bytes * 10 / baud_rate * 1000
+//          + any FIFO / DMA buffering on the TX side
+//
+// The AP-side residual (UART RX buffer wait + driver/EKF scheduler ticks) is
+// bounded to a few milliseconds because AP_Beacon::update runs at 400 Hz on
+// Copter and the EKF reads at the IMU rate; we do not attempt to model it.
+//
+// Cap age_ms at the protocol u16 maximum (65 535 ms). A firmware that cannot
+// honour this contract — for example because it lacks a microsecond clock —
+// SHOULD drop the frame at source rather than report age_ms = 0; see the
+// matching guidance in the simulator at Tools/autotest/rtls_link_beacon_sim.py.
 void AP_Beacon_RTLSLink::handle_tdoa()
 {
-    if (payload_len != 8 || !config_accepted) {
+    if (payload_len != 10 || !config_accepted) {
         return;
     }
 
@@ -189,7 +209,8 @@ void AP_Beacon_RTLSLink::handle_tdoa()
 
     const float distance_diff_m = read_i32_le(&payload[2]) * 0.001f;
     const float sigma_m = read_u16_le(&payload[6]) * 0.001f;
-    set_tdoa_measurement(anchor_id_a, anchor_id_b, distance_diff_m, sigma_m);
+    const uint16_t age_ms = read_u16_le(&payload[8]);
+    set_tdoa_measurement(anchor_id_a, anchor_id_b, distance_diff_m, sigma_m, age_ms);
     last_update_ms = AP_HAL::millis();
 }
 

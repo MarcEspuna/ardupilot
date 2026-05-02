@@ -50,7 +50,9 @@ public:
     // distance_diff is distance(anchor_id_b) - distance(anchor_id_a), in meters.
     // anchor positions must be populated with set_beacon_position(), even for TDoA-only backends.
     // anchor order is normalized internally, with distance_diff sign adjusted to match.
-    void set_tdoa_measurement(uint8_t anchor_id_a, uint8_t anchor_id_b, float distance_diff, float distance_diff_err);
+    // age_ms is the time elapsed between the physical TDoA solve and this call;
+    // backends with no transport latency (in-process SITL) pass 0.
+    void set_tdoa_measurement(uint8_t anchor_id_a, uint8_t anchor_id_b, float distance_diff, float distance_diff_err, uint16_t age_ms);
 
     float get_beacon_origin_lat(void) const { return _frontend.origin_lat; }
     float get_beacon_origin_lon(void) const { return _frontend.origin_lon; }

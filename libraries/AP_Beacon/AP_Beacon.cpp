@@ -587,6 +587,7 @@ void AP_Beacon::log()
             anchor_id_b        : tdoa.anchor_id_b,
             distance_diff      : tdoa.distance_diff,
             distance_diff_err  : tdoa.distance_diff_err,
+            age_ms             : tdoa.age_ms,
             healthy            : (uint8_t)tdoa.healthy
         };
         AP::logger().WriteBlock(&pkt_tdoa, sizeof(pkt_tdoa));

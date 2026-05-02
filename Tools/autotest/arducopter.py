@@ -8199,6 +8199,19 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
             position_max_delta=8,
             track_time=12)
 
+    def BeaconRTLSLinkTDoALatencyPosition(self):
+        '''Fly Beacon Position using the RTLS Link serial TDoA backend with 100 ms injected solve latency'''
+        self._BeaconRTLSLinkTDoAPositionScenario(
+            "age-inject-100ms",
+            sim_kwargs={
+                "tdoa_age_inject_ms": 100,
+                "tdoa_age_jitter_ms": 10,
+                "seed": 5,
+            },
+            beacon_measurement_noise=0.15,
+            force_disarm_on_land_timeout=True,
+            track_time=12)
+
     def AC_Avoidance_Beacon(self):
         '''Test beacon avoidance slide behaviour'''
         self.context_push()
@@ -11254,6 +11267,7 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
              self.BeaconRTLSLinkTDoAPosition,
              self.BeaconRTLSLinkTDoANoisePosition,
              self.BeaconRTLSLinkTDoADropoutOutlierPosition,
+             self.BeaconRTLSLinkTDoALatencyPosition,
              self.ReplayBeaconTDoA,
              self.RTLSpeed,
              self.Mount,

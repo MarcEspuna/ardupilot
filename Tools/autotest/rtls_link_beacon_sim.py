@@ -39,6 +39,8 @@ class RTLSLinkBeaconSerialSim:
         tdoa_dropout_pct: float = 0.0,
         tdoa_outlier_pct: float = 0.0,
         tdoa_outlier_m: float = 0.0,
+        tdoa_age_inject_ms: int = 0,
+        tdoa_age_jitter_ms: int = 0,
         startup_position_s: float = 10.0,
         startup_position_max_abs_down_m: float = 1.0,
         seed: int = 1,
@@ -53,6 +55,8 @@ class RTLSLinkBeaconSerialSim:
         self.tdoa_dropout_pct = tdoa_dropout_pct
         self.tdoa_outlier_pct = tdoa_outlier_pct
         self.tdoa_outlier_m = tdoa_outlier_m
+        self.tdoa_age_inject_ms = max(0, int(tdoa_age_inject_ms))
+        self.tdoa_age_jitter_ms = max(0, int(tdoa_age_jitter_ms))
         self.rng = random.Random(seed)
         self.startup_position_s = startup_position_s
         self.startup_position_max_abs_down_m = startup_position_max_abs_down_m
@@ -149,7 +153,11 @@ class RTLSLinkBeaconSerialSim:
         diff = db - da + self.tdoa_bias_m + self.rng.gauss(0.0, self.tdoa_noise_m)
         if self.rng.random() * 100.0 < self.tdoa_outlier_pct:
             diff += self.rng.choice((-1.0, 1.0)) * self.tdoa_outlier_m
-        payload = struct.pack("<BBiH", anchor_a, anchor_b, meters_to_mm(diff), sigma_mm)
+        age_ms = self.tdoa_age_inject_ms
+        if self.tdoa_age_jitter_ms > 0:
+            age_ms += self.rng.randint(-self.tdoa_age_jitter_ms, self.tdoa_age_jitter_ms)
+        age_ms = max(0, min(65535, age_ms))
+        payload = struct.pack("<BBiHH", anchor_a, anchor_b, meters_to_mm(diff), sigma_mm, age_ms)
         self._send_frame(self.MSG_TDOA, payload)
         self.sent_tdoa += 1
 
@@ -252,6 +260,8 @@ def main() -> None:
     parser.add_argument("--dropout-pct", type=float, default=0.0)
     parser.add_argument("--outlier-pct", type=float, default=0.0)
     parser.add_argument("--outlier-m", type=float, default=0.0)
+    parser.add_argument("--age-inject-ms", type=int, default=0)
+    parser.add_argument("--age-jitter-ms", type=int, default=0)
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--startup-position-max-abs-down", type=float, default=1.0)
     parser.add_argument("--duration", type=float, default=30.0)
@@ -268,6 +278,8 @@ def main() -> None:
         tdoa_dropout_pct=args.dropout_pct,
         tdoa_outlier_pct=args.outlier_pct,
         tdoa_outlier_m=args.outlier_m,
+        tdoa_age_inject_ms=args.age_inject_ms,
+        tdoa_age_jitter_ms=args.age_jitter_ms,
         startup_position_max_abs_down_m=args.startup_position_max_abs_down,
         seed=args.seed,
     )
