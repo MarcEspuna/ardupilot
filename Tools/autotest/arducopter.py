@@ -22,7 +22,7 @@ from pysim import util
 from pysim import vehicleinfo
 
 import vehicle_test_suite
-from rtls_link_beacon_sim import RTLSLinkBeaconSerialSim, cube_anchors
+from rtls_link_beacon_sim import RTLSLinkBeaconSerialSim, cube_anchors, rectangle_anchors
 
 from vehicle_test_suite import NotAchievedException, AutoTestTimeoutException, PreconditionFailedException
 from vehicle_test_suite import Test
@@ -8072,6 +8072,7 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
     def _BeaconRTLSLinkTDoAPositionScenario(
             self,
             label,
+            anchors=None,
             sim_kwargs=None,
             beacon_measurement_noise=0.15,
             max_allowed_divergence=10,
@@ -8081,6 +8082,11 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
             sim_message_rate_hz=100,
             sim_sample_rate_hz=100,
             beacon_delay_ms=50,
+            circle_radius_cm=None,
+            circle_rate_degs=None,
+            takeoff_alt=10,
+            takeoff_mode="STABILIZE",
+            takeoff_max_err=5,
             validate_landing=True):
         self.progress("RTLS Link beacon scenario: %s" % label)
         port = self.spare_network_port()
@@ -8110,11 +8116,15 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
             "EK3_BCN_M_NSE": beacon_measurement_noise,
             "EK3_BCN_DELAY": beacon_delay_ms,
         })
+        if circle_radius_cm is not None:
+            self.set_parameter("CIRCLE_RADIUS", circle_radius_cm)
+        if circle_rate_degs is not None:
+            self.set_parameter("CIRCLE_RATE", circle_rate_degs)
         self.reboot_sitl()
 
         sim = RTLSLinkBeaconSerialSim(
             ("127.0.0.1", port),
-            anchors=cube_anchors(),
+            anchors=anchors or cube_anchors(),
             sample_rate_hz=sim_sample_rate_hz,
             **(sim_kwargs or {}))
         sim.connect()
@@ -8147,7 +8157,7 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
                 if pos_delta <= position_max_delta:
                     break
 
-            self.takeoff(10, mode="STABILIZE")
+            self.takeoff(takeoff_alt, mode=takeoff_mode, max_err=takeoff_max_err)
             self.change_mode("CIRCLE")
             validator = vehicle_test_suite.TestSuite.ValidateGlobalPositionIntAgainstSimState(self, max_allowed_divergence=max_allowed_divergence)
             self.install_message_hook_context(validator)
@@ -8172,6 +8182,20 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
     def BeaconRTLSLinkTDoAPosition(self):
         '''Fly Beacon Position using the RTLS Link serial TDoA backend'''
         self._BeaconRTLSLinkTDoAPositionScenario("baseline")
+
+    def BeaconRTLSLinkTDoARectangleXYPosition(self):
+        '''Fly RTLS Link serial TDoA with 4 coplanar anchors and baro height'''
+        self._BeaconRTLSLinkTDoAPositionScenario(
+            "rectangle-xy",
+            anchors=rectangle_anchors(),
+            posz_source=1,
+            circle_radius_cm=250,
+            takeoff_alt=3,
+            takeoff_mode="GUIDED",
+            takeoff_max_err=0.5,
+            max_allowed_divergence=5,
+            validate_landing=False,
+            track_time=12)
 
     def BeaconRTLSLinkTDoANoisePosition(self):
         '''Fly Beacon Position using the RTLS Link serial TDoA backend with moderate TDoA noise'''
@@ -11283,6 +11307,7 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
              self.BeaconTDoAPosition,
              self.BeaconTDoACubePosition,
              self.BeaconRTLSLinkTDoAPosition,
+             self.BeaconRTLSLinkTDoARectangleXYPosition,
              self.BeaconRTLSLinkTDoANoisePosition,
              self.BeaconRTLSLinkTDoADropoutOutlierPosition,
              self.BeaconRTLSLinkTDoALatencyPosition,
