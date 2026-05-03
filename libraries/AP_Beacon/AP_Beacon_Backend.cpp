@@ -92,14 +92,14 @@ void AP_Beacon_Backend::set_beacon_position(uint8_t beacon_instance, const Vecto
 //     measurement for the same anchor pair is rejected (per-pair monotonicity).
 // Together these protect the EKF buffer recall from firmware clock glitches,
 // time-travel-backwards, and stale-but-just-under-timeout samples.
-void AP_Beacon_Backend::set_tdoa_measurement(uint8_t anchor_id_a, uint8_t anchor_id_b, float distance_diff, float distance_diff_err, uint16_t age_ms)
+bool AP_Beacon_Backend::set_tdoa_measurement(uint8_t anchor_id_a, uint8_t anchor_id_b, float distance_diff, float distance_diff_err, uint16_t age_ms)
 {
     if (anchor_id_a >= AP_BEACON_MAX_BEACONS ||
         anchor_id_b >= AP_BEACON_MAX_BEACONS ||
         anchor_id_a == anchor_id_b ||
         !isfinite(distance_diff) ||
         !isfinite(distance_diff_err)) {
-        return;
+        return false;
     }
 
     // Reject measurements the firmware has already let go stale. Anything older
@@ -107,7 +107,7 @@ void AP_Beacon_Backend::set_tdoa_measurement(uint8_t anchor_id_a, uint8_t anchor
     // UWB MCU or is the symptom of a clock glitch; either way it is unsafe to
     // back-stamp into the EKF delay buffer.
     if (age_ms > AP_BEACON_TDOA_MAX_AGE_MS) {
-        return;
+        return false;
     }
 
     if (anchor_id_b < anchor_id_a) {
@@ -127,7 +127,7 @@ void AP_Beacon_Backend::set_tdoa_measurement(uint8_t anchor_id_a, uint8_t anchor
     }
 
     if (instance >= AP_BEACON_MAX_TDOA_MEASUREMENTS) {
-        return;
+        return false;
     }
 
     // back-stamp the measurement to when the UWB solver actually produced it.
@@ -145,7 +145,7 @@ void AP_Beacon_Backend::set_tdoa_measurement(uint8_t anchor_id_a, uint8_t anchor
         if (prev.healthy) {
             const int32_t time_delta = (int32_t)(meas_time_ms - prev.update_ms);
             if (time_delta < -(int32_t)AP_BEACON_TDOA_BACKWARDS_TOLERANCE_MS) {
-                return;
+                return false;
             }
         }
     }
@@ -162,6 +162,7 @@ void AP_Beacon_Backend::set_tdoa_measurement(uint8_t anchor_id_a, uint8_t anchor
     state.healthy = true;
     state.update_ms = meas_time_ms;
     state.age_ms = age_ms;
+    return true;
 }
 
 // rotate vector (meters) to correct for beacon system yaw orientation

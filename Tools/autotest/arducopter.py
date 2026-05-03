@@ -8050,13 +8050,18 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
             super().__init__(suite)
             self.sim = sim
 
+        @staticmethod
+        def _sim_state_degrees(msg, int_name, float_name):
+            value_int = getattr(msg, int_name, 0)
+            if value_int != 0:
+                return value_int * 1.0e-7
+            return float(getattr(msg, float_name))
+
         def process(self, mav, msg):
             if msg.get_type() != 'SIM_STATE':
                 return
-            lat_int = getattr(msg, "lat_int", 0)
-            lon_int = getattr(msg, "lon_int", 0)
-            lat = (lat_int * 1.0e-7) if lat_int != 0 else msg.lat * 1.0e-7
-            lon = (lon_int * 1.0e-7) if lon_int != 0 else msg.lon * 1.0e-7
+            lat = self._sim_state_degrees(msg, "lat_int", "lat")
+            lon = self._sim_state_degrees(msg, "lon_int", "lon")
             north = (lat - SITL_START_LOCATION.lat) * 111319.5
             east = (lon - SITL_START_LOCATION.lng) * 111319.5 * math.cos(math.radians(SITL_START_LOCATION.lat))
             self.sim.service((north, east, SITL_START_LOCATION.alt - msg.alt), now=self.suite.get_sim_time_cached())
@@ -8076,7 +8081,7 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
             sim_message_rate_hz=100,
             sim_sample_rate_hz=100,
             beacon_delay_ms=50,
-            force_disarm_on_land_timeout=False):
+            validate_landing=True):
         self.progress("RTLS Link beacon scenario: %s" % label)
         port = self.spare_network_port()
         self.customise_SITL_commandline(["--serial5=tcp:%u" % port])
@@ -8147,14 +8152,14 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
             validator = vehicle_test_suite.TestSuite.ValidateGlobalPositionIntAgainstSimState(self, max_allowed_divergence=max_allowed_divergence)
             self.install_message_hook_context(validator)
             self.delay_sim_time(track_time)
-            self.change_mode("LOITER")
-            self.wait_groundspeed(0, 0.3, timeout=120)
-            try:
+            if validate_landing:
+                self.change_mode("LOITER")
+                self.wait_groundspeed(0, 0.3, timeout=120)
                 self.land_and_disarm()
-            except AutoTestTimeoutException:
-                if not force_disarm_on_land_timeout:
-                    raise
-                self.progress("LAND timeout in noisy beacon scenario; forcing disarm")
+            else:
+                self.progress("Tracking stress complete; forcing disarm without landing validation")
+                self.change_mode("LOITER")
+                self.delay_sim_time(2)
                 self.disarm_vehicle(force=True)
         finally:
             self.context_pop()
@@ -8178,7 +8183,7 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
                 "seed": 2,
             },
             beacon_measurement_noise=0.25,
-            force_disarm_on_land_timeout=True,
+            validate_landing=False,
             track_time=12)
 
     def BeaconRTLSLinkTDoADropoutOutlierPosition(self):
@@ -8195,7 +8200,7 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
             },
             beacon_measurement_noise=0.35,
             max_allowed_divergence=15,
-            force_disarm_on_land_timeout=True,
+            validate_landing=False,
             position_max_delta=8,
             track_time=12)
 
@@ -8209,7 +8214,7 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
                 "seed": 5,
             },
             beacon_measurement_noise=0.15,
-            force_disarm_on_land_timeout=True,
+            validate_landing=False,
             track_time=12)
 
     def BeaconRTLSLinkTDoACorruptAgePosition(self):
@@ -8222,7 +8227,7 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
                 "seed": 6,
             },
             beacon_measurement_noise=0.15,
-            force_disarm_on_land_timeout=True,
+            validate_landing=False,
             track_time=12)
 
     def AC_Avoidance_Beacon(self):

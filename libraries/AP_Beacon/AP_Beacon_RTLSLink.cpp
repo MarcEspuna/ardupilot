@@ -210,8 +210,9 @@ void AP_Beacon_RTLSLink::handle_tdoa()
     const float distance_diff_m = read_i32_le(&payload[2]) * 0.001f;
     const float sigma_m = read_u16_le(&payload[6]) * 0.001f;
     const uint16_t age_ms = read_u16_le(&payload[8]);
-    set_tdoa_measurement(anchor_id_a, anchor_id_b, distance_diff_m, sigma_m, age_ms);
-    last_update_ms = AP_HAL::millis();
+    if (set_tdoa_measurement(anchor_id_a, anchor_id_b, distance_diff_m, sigma_m, age_ms)) {
+        last_update_ms = AP_HAL::millis();
+    }
 }
 
 void AP_Beacon_RTLSLink::handle_config_end()

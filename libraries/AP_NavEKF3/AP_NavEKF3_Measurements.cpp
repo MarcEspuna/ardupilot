@@ -988,8 +988,9 @@ void NavEKF3_core::readRngBcnData()
             rngBcn.lastTDoATime_ms[tdoa_index] = tdoa.update_ms;
             // tdoa.update_ms is already back-stamped by age_ms in the driver, so
             // EK3_BCN_DELAY (which models legacy untimed range-backend latency) does not apply here.
-            // Only correct for half the EKF discretisation step.
-            tdoaBcnDataNew.time_ms = tdoa.update_ms - localFilterTimeStep_ms/2;
+            // Clamp the half-step correction near boot to avoid u32 wrap.
+            const uint8_t half_filter_step_ms = localFilterTimeStep_ms / 2;
+            tdoaBcnDataNew.time_ms = tdoa.update_ms > half_filter_step_ms ? tdoa.update_ms - half_filter_step_ms : 0;
             tdoaBcnDataNew.distance_diff = tdoa.distance_diff;
             tdoaBcnDataNew.distance_diff_err = tdoa.distance_diff_err > 0.0f ? tdoa.distance_diff_err : frontend->_rngBcnNoise;
             tdoaBcnDataNew.beacon_pos_a_NED = beacon->beacon_position(tdoa.anchor_id_a).toftype();
