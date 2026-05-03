@@ -83,7 +83,15 @@ void AP_Beacon_Backend::set_beacon_position(uint8_t beacon_instance, const Vecto
     _frontend.beacon_state[beacon_instance].position = correct_for_orient_yaw(pos);
 }
 
-// set a TDoA range-difference measurement between two beacons
+// set a TDoA range-difference measurement between two beacons.
+// Hardening contract for the age_ms field:
+//   - age_ms > AP_BEACON_TDOA_MAX_AGE_MS is rejected outright.
+//   - The back-stamped time is clamped at boot wraparound (age_ms > millis).
+//   - A new measurement whose back-stamped time is more than
+//     AP_BEACON_TDOA_BACKWARDS_TOLERANCE_MS BEFORE the previously accepted
+//     measurement for the same anchor pair is rejected (per-pair monotonicity).
+// Together these protect the EKF buffer recall from firmware clock glitches,
+// time-travel-backwards, and stale-but-just-under-timeout samples.
 void AP_Beacon_Backend::set_tdoa_measurement(uint8_t anchor_id_a, uint8_t anchor_id_b, float distance_diff, float distance_diff_err, uint16_t age_ms)
 {
     if (anchor_id_a >= AP_BEACON_MAX_BEACONS ||
@@ -91,6 +99,14 @@ void AP_Beacon_Backend::set_tdoa_measurement(uint8_t anchor_id_a, uint8_t anchor
         anchor_id_a == anchor_id_b ||
         !isfinite(distance_diff) ||
         !isfinite(distance_diff_err)) {
+        return;
+    }
+
+    // Reject measurements the firmware has already let go stale. Anything older
+    // than AP_BEACON_TDOA_MAX_AGE_MS has either been queued too long inside the
+    // UWB MCU or is the symptom of a clock glitch; either way it is unsafe to
+    // back-stamp into the EKF delay buffer.
+    if (age_ms > AP_BEACON_TDOA_MAX_AGE_MS) {
         return;
     }
 
@@ -113,13 +129,30 @@ void AP_Beacon_Backend::set_tdoa_measurement(uint8_t anchor_id_a, uint8_t anchor
     if (instance >= AP_BEACON_MAX_TDOA_MEASUREMENTS) {
         return;
     }
+
+    // back-stamp the measurement to when the UWB solver actually produced it.
+    // Boot wraparound: u32 underflow is handled by clamping to 0.
+    const uint32_t now_ms = AP_HAL::millis();
+    const uint32_t meas_time_ms = (age_ms > now_ms) ? 0 : (now_ms - age_ms);
+
+    // Per-pair monotonicity guard: reject a measurement that claims to be
+    // older than the previous accepted one for the same pair, beyond a small
+    // jitter tolerance. Cast to int32_t for wrap-safe signed comparison: the
+    // difference (meas_time_ms - prev.update_ms) is interpreted as signed and
+    // a strongly-negative result means time-travel-backwards.
+    if (instance < _frontend.num_tdoa) {
+        const auto &prev = _frontend.tdoa_state[instance];
+        if (prev.healthy) {
+            const int32_t time_delta = (int32_t)(meas_time_ms - prev.update_ms);
+            if (time_delta < -(int32_t)AP_BEACON_TDOA_BACKWARDS_TOLERANCE_MS) {
+                return;
+            }
+        }
+    }
+
     if (instance >= _frontend.num_tdoa) {
         _frontend.num_tdoa = instance + 1;
     }
-
-    // back-stamp the measurement to when the UWB solver actually produced it
-    const uint32_t now_ms = AP_HAL::millis();
-    const uint32_t meas_time_ms = (age_ms > now_ms) ? 0 : (now_ms - age_ms);
 
     auto &state = _frontend.tdoa_state[instance];
     state.anchor_id_a = anchor_id_a;

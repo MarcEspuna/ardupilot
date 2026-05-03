@@ -8212,6 +8212,19 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
             force_disarm_on_land_timeout=True,
             track_time=12)
 
+    def BeaconRTLSLinkTDoACorruptAgePosition(self):
+        '''Fly Beacon Position with 30% of TDoA frames carrying a corrupted (5 s) age - driver guards must drop them at the boundary'''
+        self._BeaconRTLSLinkTDoAPositionScenario(
+            "age-corrupt-30pct-5s",
+            sim_kwargs={
+                "tdoa_age_corrupt_pct": 30.0,
+                "tdoa_age_corrupt_value_ms": 5000,
+                "seed": 6,
+            },
+            beacon_measurement_noise=0.15,
+            force_disarm_on_land_timeout=True,
+            track_time=12)
+
     def AC_Avoidance_Beacon(self):
         '''Test beacon avoidance slide behaviour'''
         self.context_push()
@@ -11268,6 +11281,7 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
              self.BeaconRTLSLinkTDoANoisePosition,
              self.BeaconRTLSLinkTDoADropoutOutlierPosition,
              self.BeaconRTLSLinkTDoALatencyPosition,
+             self.BeaconRTLSLinkTDoACorruptAgePosition,
              self.ReplayBeaconTDoA,
              self.RTLSpeed,
              self.Mount,

@@ -41,6 +41,8 @@ class RTLSLinkBeaconSerialSim:
         tdoa_outlier_m: float = 0.0,
         tdoa_age_inject_ms: int = 0,
         tdoa_age_jitter_ms: int = 0,
+        tdoa_age_corrupt_pct: float = 0.0,
+        tdoa_age_corrupt_value_ms: int = 5000,
         startup_position_s: float = 10.0,
         startup_position_max_abs_down_m: float = 1.0,
         seed: int = 1,
@@ -57,6 +59,9 @@ class RTLSLinkBeaconSerialSim:
         self.tdoa_outlier_m = tdoa_outlier_m
         self.tdoa_age_inject_ms = max(0, int(tdoa_age_inject_ms))
         self.tdoa_age_jitter_ms = max(0, int(tdoa_age_jitter_ms))
+        self.tdoa_age_corrupt_pct = max(0.0, min(100.0, float(tdoa_age_corrupt_pct)))
+        self.tdoa_age_corrupt_value_ms = max(0, min(65535, int(tdoa_age_corrupt_value_ms)))
+        self.corrupted_tdoa = 0
         self.rng = random.Random(seed)
         self.startup_position_s = startup_position_s
         self.startup_position_max_abs_down_m = startup_position_max_abs_down_m
@@ -156,6 +161,9 @@ class RTLSLinkBeaconSerialSim:
         age_ms = self.tdoa_age_inject_ms
         if self.tdoa_age_jitter_ms > 0:
             age_ms += self.rng.randint(-self.tdoa_age_jitter_ms, self.tdoa_age_jitter_ms)
+        if self.tdoa_age_corrupt_pct > 0.0 and self.rng.random() * 100.0 < self.tdoa_age_corrupt_pct:
+            age_ms = self.tdoa_age_corrupt_value_ms
+            self.corrupted_tdoa += 1
         age_ms = max(0, min(65535, age_ms))
         payload = struct.pack("<BBiHH", anchor_a, anchor_b, meters_to_mm(diff), sigma_mm, age_ms)
         self._send_frame(self.MSG_TDOA, payload)
