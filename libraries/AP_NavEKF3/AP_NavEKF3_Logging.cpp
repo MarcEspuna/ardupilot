@@ -300,6 +300,7 @@ void NavEKF3_core::Log_Write_TDoABeacon(uint64_t time_us)
         anchor_id_a     : report.anchor_id_a,
         anchor_id_b     : report.anchor_id_b,
         healthy         : (uint8_t)report.healthy,
+        fuses_height    : (uint8_t)report.fuses_height,
         distance_diff   : report.distance_diff,
         innov           : report.innov,
         sqrtInnovVar    : sqrtF(report.innovVar),

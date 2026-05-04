@@ -1250,7 +1250,7 @@ void NavEKF3_core::selectHeightForFusion()
     } else if ((frontend->sources.getPosZSource() == AP_NavEKF_Source::SourceZ::GPS) && ((imuSampleTime_ms - lastTimeGpsReceived_ms) < 500) && validOrigin && gpsAccuracyGood) {
         activeHgtSource = AP_NavEKF_Source::SourceZ::GPS;
 #if EK3_FEATURE_BEACON_FUSION
-    } else if ((frontend->sources.getPosZSource() == AP_NavEKF_Source::SourceZ::BEACON) && validOrigin && rngBcn.goodToAlign) {
+    } else if ((frontend->sources.getPosZSource() == AP_NavEKF_Source::SourceZ::BEACON) && (PV_AidingMode == AID_ABSOLUTE) && validOrigin && rngBcn.goodToAlign) {
         activeHgtSource = AP_NavEKF_Source::SourceZ::BEACON;
 #endif
 #if EK3_FEATURE_EXTERNAL_NAV
@@ -1263,7 +1263,9 @@ void NavEKF3_core::selectHeightForFusion()
     bool lostRngHgt = ((activeHgtSource == AP_NavEKF_Source::SourceZ::RANGEFINDER) && !rangeFinderDataIsFresh);
     bool lostGpsHgt = ((activeHgtSource == AP_NavEKF_Source::SourceZ::GPS) && ((imuSampleTime_ms - lastTimeGpsReceived_ms) > 2000 || !gpsAccuracyGoodForAltitude));
 #if EK3_FEATURE_BEACON_FUSION
-    bool lostRngBcnHgt = ((activeHgtSource == AP_NavEKF_Source::SourceZ::BEACON) && ((imuSampleTime_ms - rngBcn.dataDelayed.time_ms) > 2000));
+    const bool rng_bcn_hgt_fresh = (imuSampleTime_ms - rngBcn.dataDelayed.time_ms) <= 2000;
+    const bool tdoa_bcn_hgt_fresh = (imuSampleTime_ms - rngBcn.tdoaDataDelayed.time_ms) <= 2000;
+    bool lostRngBcnHgt = ((activeHgtSource == AP_NavEKF_Source::SourceZ::BEACON) && !rng_bcn_hgt_fresh && !tdoa_bcn_hgt_fresh);
 #endif
     bool fallback_to_baro =
         lostRngHgt

@@ -65,6 +65,7 @@ struct PACKED log_XKF0 {
 // @Field: IdA: First beacon anchor instance
 // @Field: IdB: Second beacon anchor instance
 // @Field: Health: True if the TDoA measurement passed fusion consistency checks
+// @Field: Hgt: True if this TDoA measurement fused vertical position
 // @Field: DD: Measured distance to IdB minus distance to IdA
 // @Field: Innov: TDoA range-difference innovation
 // @Field: SIV: sqrt of TDoA range-difference innovation variance
@@ -76,6 +77,7 @@ struct PACKED log_XKTD {
     uint8_t anchor_id_a;
     uint8_t anchor_id_b;
     uint8_t healthy;
+    uint8_t fuses_height;
     float distance_diff;
     float innov;
     float sqrtInnovVar;
@@ -475,7 +477,7 @@ struct PACKED log_XKV {
       "XKFS","QBBBBBBBBB","TimeUS,C,MI,BI,GI,AI,SS,GPS_GTA,GPS_CHK_WAIT,MAG_FUSION", "s#--------", "F---------" , true }, \
     { LOG_XKQ_MSG, sizeof(log_XKQ), "XKQ", "QBffff", "TimeUS,C,Q1,Q2,Q3,Q4", "s#????", "F-????" , true }, \
     { LOG_XKTD_MSG, sizeof(log_XKTD), \
-      "XKTD","QBBBBffff","TimeUS,C,IdA,IdB,Health,DD,Innov,SIV,TR", "s#---mmm-", "F----0000" , true }, \
+      "XKTD","QBBBBBffff","TimeUS,C,IdA,IdB,Health,Hgt,DD,Innov,SIV,TR", "s#----mmm-", "F-----0000" , true }, \
     { LOG_XKT_MSG, sizeof(log_XKT),   \
       "XKT", "QBIffffffff", "TimeUS,C,Cnt,IMUMin,IMUMax,EKFMin,EKFMax,AngMin,AngMax,VMin,VMax", "s#sssssssss", "F-000000000", true }, \
     { LOG_XKTV_MSG, sizeof(log_XKTV),                         \

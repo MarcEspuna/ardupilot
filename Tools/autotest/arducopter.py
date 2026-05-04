@@ -7944,7 +7944,23 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
             if m.lat != 0 or m.lon != 0:
                 return m
 
-    def BeaconPosition(self, sitl_mode=0, assert_tdoa=False, track_time=20, force_disarm_after=True, assert_logs=True, fly=True, extra_params=None, position_max_delta=1):
+    def assert_current_onboard_log_tdoa_height_fusion(self, min_samples=10):
+        dfreader = self.dfreader_for_current_onboard_log()
+        total = 0
+        healthy_height = 0
+        while True:
+            m = dfreader.recv_match(type='XKTD')
+            if m is None:
+                break
+            total += 1
+            if getattr(m, "Health", 0) and getattr(m, "Hgt", 0):
+                healthy_height += 1
+        self.progress("XKTD height-fusion samples=%u/%u want >= %u" % (healthy_height, total, min_samples))
+        if healthy_height < min_samples:
+            raise NotAchievedException("Current onboard log has only %u healthy TDoA height-fusion samples, want >= %u" %
+                                       (healthy_height, min_samples))
+
+    def BeaconPosition(self, sitl_mode=0, assert_tdoa=False, assert_tdoa_height=False, track_time=20, force_disarm_after=True, assert_logs=True, fly=True, extra_params=None, position_max_delta=1):
         '''Fly Beacon Position'''
         self.reboot_sitl()
 
@@ -8023,6 +8039,8 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
             if assert_tdoa:
                 self.assert_current_onboard_log_contains_message("BCNT")
                 self.assert_current_onboard_log_contains_message("XKTD")
+            if assert_tdoa_height:
+                self.assert_current_onboard_log_tdoa_height_fusion()
 
         if force_disarm_after:
             self.disarm_vehicle(force=True)
@@ -8032,10 +8050,11 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
         self.BeaconPosition(sitl_mode=1, assert_tdoa=True)
 
     def BeaconTDoACubePosition(self):
-        '''Fly Beacon Position using 8-anchor SITL TDoA measurements'''
+        '''Fly Beacon Position using 8-anchor SITL TDoA measurements with beacon Z fusion'''
         self.BeaconPosition(
             sitl_mode=1,
             assert_tdoa=True,
+            assert_tdoa_height=True,
             track_time=12,
             position_max_delta=5,
             extra_params={
