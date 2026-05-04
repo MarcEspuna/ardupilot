@@ -12,6 +12,7 @@ from typing import Iterable, List, Sequence, Tuple
 
 
 Vector3 = Tuple[float, float, float]
+Origin = Tuple[float, float, float]
 
 
 class RTLSLinkBeaconSerialSim:
@@ -23,6 +24,7 @@ class RTLSLinkBeaconSerialSim:
     MSG_POSITION = 3
     MSG_TDOA = 4
     MSG_CONFIG_END = 5
+    MSG_ORIGIN = 6
     MSG_ACK = 0x80
 
     ACK_OK = 0
@@ -31,6 +33,7 @@ class RTLSLinkBeaconSerialSim:
         self,
         address: Tuple[str, int],
         anchors: Sequence[Vector3] | None = None,
+        origin: Origin = (0.0, 0.0, 0.0),
         sample_rate_hz: float = 20.0,
         position_error_m: float = 0.5,
         tdoa_sigma_m: float = 0.15,
@@ -49,6 +52,7 @@ class RTLSLinkBeaconSerialSim:
     ) -> None:
         self.address = address
         self.anchors: List[Vector3] = list(anchors or cube_anchors())
+        self.origin = origin
         self.sample_period = 1.0 / sample_rate_hz
         self.position_error_m = position_error_m
         self.tdoa_sigma_m = tdoa_sigma_m
@@ -131,6 +135,15 @@ class RTLSLinkBeaconSerialSim:
         self._send_frame(self.MSG_HELLO, struct.pack("<BBB", self.VERSION, 0, len(self.anchors)))
         for idx, pos in enumerate(self.anchors):
             self._send_frame(self.MSG_ANCHOR, struct.pack("<Biii", idx, *[meters_to_mm(v) for v in pos]))
+        self._send_frame(
+            self.MSG_ORIGIN,
+            struct.pack(
+                "<iii",
+                deg_to_degE7(self.origin[0]),
+                deg_to_degE7(self.origin[1]),
+                meters_to_cm(self.origin[2]),
+            ),
+        )
         self._send_frame(self.MSG_CONFIG_END, struct.pack("<B", len(self.anchors)))
 
     def send_position(self, position_ned: Vector3) -> None:
@@ -237,6 +250,18 @@ def meters_to_mm(meters: float) -> int:
     if not math.isfinite(meters):
         return 0
     return int(round(meters * 1000.0))
+
+
+def meters_to_cm(meters: float) -> int:
+    if not math.isfinite(meters):
+        return 0
+    return int(round(meters * 100.0))
+
+
+def deg_to_degE7(degrees: float) -> int:
+    if not math.isfinite(degrees):
+        return 0
+    return int(round(degrees * 1.0e7))
 
 
 def crc16_ccitt(data: bytes) -> int:

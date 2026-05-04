@@ -165,6 +165,8 @@ private:
     AP_Float origin_lon;
     AP_Float origin_alt;
     AP_Int16 orient_yaw;
+    bool backend_origin_valid = false;
+    Location backend_origin {};
 #if AP_BEACON_SITL_ENABLED
     AP_Int8 sitl_mode;
     AP_Float sitl_tdoa_noise_m_param;

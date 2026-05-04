@@ -83,6 +83,18 @@ void AP_Beacon_Backend::set_beacon_position(uint8_t beacon_instance, const Vecto
     _frontend.beacon_state[beacon_instance].position = correct_for_orient_yaw(pos);
 }
 
+void AP_Beacon_Backend::set_beacon_origin(const Location& origin)
+{
+    _frontend.backend_origin = origin;
+    _frontend.backend_origin_valid = true;
+}
+
+void AP_Beacon_Backend::clear_beacon_origin()
+{
+    _frontend.backend_origin_valid = false;
+    _frontend.backend_origin = {};
+}
+
 // set a TDoA range-difference measurement between two beacons.
 // Hardening contract for the age_ms field:
 //   - age_ms > AP_BEACON_TDOA_MAX_AGE_MS is rejected outright.

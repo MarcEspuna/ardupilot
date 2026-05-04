@@ -286,6 +286,11 @@ bool AP_Beacon::get_origin(Location &origin_loc) const
         return false;
     }
 
+    if (backend_origin_valid) {
+        origin_loc = backend_origin;
+        return true;
+    }
+
     // check for un-initialised origin
     if (is_zero(origin_lat) && is_zero(origin_lon) && is_zero(origin_alt)) {
         return false;

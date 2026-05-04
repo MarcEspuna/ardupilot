@@ -116,6 +116,9 @@ void AP_Beacon_RTLSLink::handle_frame()
     case MsgId::CONFIG_END:
         handle_config_end();
         break;
+    case MsgId::ORIGIN:
+        handle_origin();
+        break;
     case MsgId::ACK:
         break;
     }
@@ -134,6 +137,8 @@ void AP_Beacon_RTLSLink::handle_hello()
 
     expected_anchor_count = MIN(payload[2], (uint8_t)AP_BEACON_MAX_BEACONS);
     configured_anchor_mask = 0;
+    origin_received = false;
+    clear_beacon_origin();
     config_accepted = false;
     send_ack(MsgId::HELLO, AckStatus::OK);
 }
@@ -233,11 +238,44 @@ void AP_Beacon_RTLSLink::handle_config_end()
         send_ack(MsgId::CONFIG_END, AckStatus::BAD_CONFIG);
         return;
     }
+    if (!origin_received &&
+        is_zero(get_beacon_origin_lat()) &&
+        is_zero(get_beacon_origin_lon()) &&
+        is_zero(get_beacon_origin_alt())) {
+        send_ack(MsgId::CONFIG_END, AckStatus::BAD_CONFIG);
+        return;
+    }
 
     expected_anchor_count = anchor_count;
     config_accepted = true;
     last_update_ms = AP_HAL::millis();
     send_ack(MsgId::CONFIG_END, AckStatus::OK);
+}
+
+void AP_Beacon_RTLSLink::handle_origin()
+{
+    if (payload_len != 12) {
+        send_ack(MsgId::ORIGIN, AckStatus::BAD_FRAME);
+        return;
+    }
+
+    const int32_t origin_lat = read_i32_le(&payload[0]);
+    const int32_t origin_lon = read_i32_le(&payload[4]);
+    const int32_t origin_alt = read_i32_le(&payload[8]);
+    if (origin_lat == 0 && origin_lon == 0 && origin_alt == 0) {
+        send_ack(MsgId::ORIGIN, AckStatus::BAD_CONFIG);
+        return;
+    }
+
+    const Location origin {
+        origin_lat,
+        origin_lon,
+        origin_alt,
+        Location::AltFrame::ABSOLUTE
+    };
+    set_beacon_origin(origin);
+    origin_received = true;
+    send_ack(MsgId::ORIGIN, AckStatus::OK);
 }
 
 void AP_Beacon_RTLSLink::send_ack(MsgId acked_msg_id, AckStatus status)

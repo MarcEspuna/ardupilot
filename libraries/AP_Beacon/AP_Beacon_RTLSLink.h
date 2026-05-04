@@ -24,6 +24,7 @@ private:
         POSITION = 3,
         TDOA = 4,
         CONFIG_END = 5,
+        ORIGIN = 6,
         ACK = 0x80,
     };
 
@@ -53,6 +54,7 @@ private:
     void handle_position();
     void handle_tdoa();
     void handle_config_end();
+    void handle_origin();
     void send_ack(MsgId msg_id, AckStatus status);
 
     static uint16_t crc16_update(uint16_t crc, uint8_t b);
@@ -70,6 +72,7 @@ private:
 
     uint8_t expected_anchor_count = 0;
     uint8_t configured_anchor_mask = 0;
+    bool origin_received = false;
     bool config_accepted = false;
     uint32_t last_update_ms = 0;
 };

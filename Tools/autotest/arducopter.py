@@ -8119,9 +8119,9 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
             "SERIAL5_PROTOCOL": 13,
             "SERIAL5_BAUD": 115,
             "BCN_TYPE": 4,
-            "BCN_LATITUDE": SITL_START_LOCATION.lat,
-            "BCN_LONGITUDE": SITL_START_LOCATION.lng,
-            "BCN_ALT": SITL_START_LOCATION.alt,
+            "BCN_LATITUDE": 0,
+            "BCN_LONGITUDE": 0,
+            "BCN_ALT": 0,
             "BCN_ORIENT_YAW": 0,
             "AVOID_ENABLE": 4,
             "GPS1_TYPE": 0,
@@ -8144,6 +8144,7 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
         sim = RTLSLinkBeaconSerialSim(
             ("127.0.0.1", port),
             anchors=anchors or cube_anchors(),
+            origin=(SITL_START_LOCATION.lat, SITL_START_LOCATION.lng, SITL_START_LOCATION.alt),
             sample_rate_hz=sim_sample_rate_hz,
             **(sim_kwargs or {}))
         sim.connect()

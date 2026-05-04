@@ -46,6 +46,14 @@ public:
     // pos should be in meters in NED from the beacon's local origin
     void set_beacon_position(uint8_t beacon_instance, const Vector3f& pos);
 
+    // set beacon system origin. Backends that receive the origin from their
+    // transport should use this instead of relying on BCN_LATITUDE/LONGITUDE/ALT.
+    void set_beacon_origin(const Location& origin);
+
+    // clear backend-provided origin during a fresh transport configuration.
+    // AP_Beacon::get_origin() will fall back to BCN_LATITUDE/LONGITUDE/ALT.
+    void clear_beacon_origin();
+
     // set a TDoA range-difference measurement between two beacons.
     // distance_diff is distance(anchor_id_b) - distance(anchor_id_a), in meters.
     // anchor positions must be populated with set_beacon_position(), even for TDoA-only backends.
