@@ -21,6 +21,7 @@
 #include "AP_Beacon_Pozyx.h"
 #include "AP_Beacon_Marvelmind.h"
 #include "AP_Beacon_Nooploop.h"
+#include "AP_Beacon_RTLSLink.h"
 #include "AP_Beacon_SITL.h"
 
 #include <AP_Common/Location.h>
@@ -38,7 +39,7 @@ const AP_Param::GroupInfo AP_Beacon::var_info[] = {
     // @Param: _TYPE
     // @DisplayName: Beacon based position estimation device type
     // @Description: What type of beacon based position estimation device is connected
-    // @Values: 0:None,1:Pozyx,2:Marvelmind,3:Nooploop,10:SITL
+    // @Values: 0:None,1:Pozyx,2:Marvelmind,3:Nooploop,4:RTLSLink,10:SITL
     // @User: Advanced
     AP_GROUPINFO_FLAGS("_TYPE",    0, AP_Beacon, _type, 0, AP_PARAM_FLAG_ENABLE),
 
@@ -228,6 +229,11 @@ void AP_Beacon::init(void)
     case Type::Nooploop:
         _driver = NEW_NOTHROW AP_Beacon_Nooploop(*this);
         break;
+#if AP_BEACON_RTLSLINK_ENABLED
+    case Type::RTLSLink:
+        _driver = NEW_NOTHROW AP_Beacon_RTLSLink(*this);
+        break;
+#endif
 #if AP_BEACON_SITL_ENABLED
     case Type::SITL:
         _driver = NEW_NOTHROW AP_Beacon_SITL(*this);
@@ -278,6 +284,11 @@ bool AP_Beacon::get_origin(Location &origin_loc) const
 {
     if (!device_ready()) {
         return false;
+    }
+
+    if (backend_origin_valid) {
+        origin_loc = backend_origin;
+        return true;
     }
 
     // check for un-initialised origin
@@ -581,6 +592,7 @@ void AP_Beacon::log()
             anchor_id_b        : tdoa.anchor_id_b,
             distance_diff      : tdoa.distance_diff,
             distance_diff_err  : tdoa.distance_diff_err,
+            age_ms             : tdoa.age_ms,
             healthy            : (uint8_t)tdoa.healthy
         };
         AP::logger().WriteBlock(&pkt_tdoa, sizeof(pkt_tdoa));

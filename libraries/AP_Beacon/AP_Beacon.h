@@ -41,6 +41,7 @@ public:
         Pozyx  = 1,
         Marvelmind = 2,
         Nooploop  = 3,
+        RTLSLink = 4,
 #if AP_BEACON_SITL_ENABLED
         SITL   = 10
 #endif
@@ -63,7 +64,8 @@ public:
         bool healthy;                    // true if measurement is healthy
         float distance_diff;             // distance(anchor_b) - distance(anchor_a), in meters
         float distance_diff_err;         // 1-sigma error of distance difference, in meters
-        uint32_t update_ms;              // system time of last update from this anchor pair
+        uint32_t update_ms;              // system time the measurement was produced (back-stamped from age)
+        uint16_t age_ms;                 // reported age of the measurement at receive time, in milliseconds
     };
 
     // initialise any available position estimators
@@ -163,6 +165,8 @@ private:
     AP_Float origin_lon;
     AP_Float origin_alt;
     AP_Int16 orient_yaw;
+    bool backend_origin_valid = false;
+    Location backend_origin {};
 #if AP_BEACON_SITL_ENABLED
     AP_Int8 sitl_mode;
     AP_Float sitl_tdoa_noise_m_param;

@@ -329,6 +329,9 @@ void NavEKF3_core::FuseRngBcn()
 
                 // record healthy fusion
                 faultStatus.bad_rngbcn = false;
+                if (activeHgtSource == AP_NavEKF_Source::SourceZ::BEACON) {
+                    lastHgtPassTime_ms = imuSampleTime_ms;
+                }
 
             } else {
                 // record bad fusion
@@ -352,10 +355,11 @@ void NavEKF3_core::FuseRngBcn()
 void NavEKF3_core::FuseTDoABcn()
 {
     const ftype R_BCN = sq(MAX(rngBcn.tdoaDataDelayed.distance_diff_err, 0.1f));
+    const bool fuses_height = activeHgtSource == AP_NavEKF_Source::SourceZ::BEACON;
 
     rngBcn.health = false;
 
-    if (activeHgtSource == AP_NavEKF_Source::SourceZ::BEACON) {
+    if (fuses_height) {
         rngBcn.posOffsetNED.z = 0.0f;
     }
 
@@ -375,7 +379,7 @@ void NavEKF3_core::FuseTDoABcn()
     memset(H_BCN, 0, sizeof(H_BCN));
     H_BCN[7] = delta_b.x / range_b - delta_a.x / range_a;
     H_BCN[8] = delta_b.y / range_b - delta_a.y / range_a;
-    if (activeHgtSource == AP_NavEKF_Source::SourceZ::BEACON) {
+    if (fuses_height) {
         H_BCN[9] = delta_b.z / range_b - delta_a.z / range_a;
     }
 
@@ -412,7 +416,7 @@ void NavEKF3_core::FuseTDoABcn()
         zero_range(&Kfusion[0], 13, 15);
     }
 
-    if (activeHgtSource != AP_NavEKF_Source::SourceZ::BEACON) {
+    if (!fuses_height) {
         Kfusion[6] = 0.0f;
         Kfusion[9] = 0.0f;
     }
@@ -473,6 +477,9 @@ void NavEKF3_core::FuseTDoABcn()
             }
 
             faultStatus.bad_rngbcn = false;
+            if (fuses_height) {
+                lastHgtPassTime_ms = imuSampleTime_ms;
+            }
         } else {
             faultStatus.bad_rngbcn = true;
         }
@@ -481,6 +488,7 @@ void NavEKF3_core::FuseTDoABcn()
     auto &report = rngBcn.tdoaFusionReport;
     report.valid = true;
     report.healthy = rngBcn.health;
+    report.fuses_height = fuses_height;
     report.anchor_id_a = rngBcn.tdoaDataDelayed.anchor_id_a;
     report.anchor_id_b = rngBcn.tdoaDataDelayed.anchor_id_b;
     report.distance_diff = rngBcn.tdoaDataDelayed.distance_diff;

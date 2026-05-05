@@ -40,6 +40,7 @@ struct PACKED log_Beacon {
 // @Field: IdB: Second beacon anchor instance
 // @Field: DD: Measured distance to IdB minus distance to IdA
 // @Field: Err: TDoA range-difference one-sigma error
+// @Field: Age: Reported measurement age at receive time
 // @Field: Health: True if the TDoA measurement is healthy
 
 struct PACKED log_BeaconTDoA {
@@ -49,6 +50,7 @@ struct PACKED log_BeaconTDoA {
     uint8_t anchor_id_b;
     float distance_diff;
     float distance_diff_err;
+    uint16_t age_ms;
     uint8_t healthy;
 };
 
@@ -56,4 +58,4 @@ struct PACKED log_BeaconTDoA {
     { LOG_BEACON_MSG, sizeof(log_Beacon), \
         "BCN", "QBBfffffff",  "TimeUS,Health,Cnt,D0,D1,D2,D3,PosX,PosY,PosZ", "s--mmmmmmm", "F--0000000", true }, \
     { LOG_BEACON_TDOA_MSG, sizeof(log_BeaconTDoA), \
-        "BCNT", "QBBffB",  "TimeUS,IdA,IdB,DD,Err,Health", "s--mm-", "F--00-", true },
+        "BCNT", "QBBffHB",  "TimeUS,IdA,IdB,DD,Err,Age,Health", "s--mms-", "F--00C-", true },

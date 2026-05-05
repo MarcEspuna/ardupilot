@@ -1444,6 +1444,7 @@ private:
         struct TDoAFusionReport {
             bool valid;         // true when the report contains a TDoA fusion attempt not yet logged
             bool healthy;       // true when the TDoA measurement passed fusion consistency checks
+            bool fuses_height;  // true when this TDoA measurement fused vertical position
             uint8_t anchor_id_a;// first TDoA anchor ID
             uint8_t anchor_id_b;// second TDoA anchor ID
             ftype distance_diff;// measured distance(anchor_id_b) - distance(anchor_id_a), in meters
